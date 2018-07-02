@@ -17,14 +17,16 @@ defmodule ExBanking.Account do
 
   @doc """
   Handle `operation` into `account`, apply value to the current value for specified currency and account
+  Returns :ok or {:error, :not_enough_money} in case of error
   """
   def handle(account, currency, value) do
     if get(account, currency) + value < 0 do
-      :not_enough_money
+      {:error, :not_enough_money}
     else
       Agent.update(account, fn map ->
         Map.update(map, currency, value, fn old_val -> old_val + value end)
       end)
+      {:ok, get(account, currency)}
     end
   end
 end
