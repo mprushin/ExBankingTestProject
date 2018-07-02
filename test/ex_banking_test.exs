@@ -3,6 +3,6 @@ defmodule ExBankingTest do
   doctest ExBanking
 
   test "greets the world" do
-    assert ExBanking.hello() == :world
+    assert ExBanking.create_user("Mike") == :ok
   end
 end
