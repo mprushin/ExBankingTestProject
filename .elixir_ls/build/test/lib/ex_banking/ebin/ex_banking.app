@@ -6,4 +6,5 @@
                         'Elixir.ExBanking.Supervisor']},
               {registered,[]},
               {vsn,"0.1.0"},
-              {extra_applications,[logger]}]}.
+              {extra_applications,[logger]},
+              {mod,{'Elixir.ExBanking',[]}}]}.

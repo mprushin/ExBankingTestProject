@@ -1,7 +1,7 @@
 defmodule ExBanking.Registry do
   use GenServer
 
-    ## Client API
+  ## Client API
 
   @doc """
   Starts the registry.
@@ -36,25 +36,38 @@ defmodule ExBanking.Registry do
   ## Server Callbacks
 
   def init(:ok) do
-    {:ok, %{}}
+    names = %{}
+    refs = %{}
+    {:ok, {names, refs}}
   end
 
-  def handle_call({:lookup, name}, _from, names) do
+  def handle_call({:lookup, name}, _from, {names, refs}) do
     if Map.has_key?(names, name) do
-      {:reply, {:ok, Map.fetch(names, name)}, names}
+      {:reply, Map.fetch(names, name), {names, refs}}
     else
-      {:reply, {:error, :user_does_not_exist}, names}
+      {:reply, {:error, :user_does_not_exist}, {names, refs}}
     end
-
   end
 
-  def handle_call({:create, name}, names) do
+  def handle_call({:create, name}, _from, {names, refs}) do
     if Map.has_key?(names, name) do
-      {:reply, {:error, :user_already_exists}, names}
+      {:reply, {:error, :user_already_exists}, {names, refs}}
     else
       {:ok, account} = ExBanking.Account.start_link([])
-      {:reply, :ok, Map.put(names, name, account)}
+      ref = Process.monitor(account)
+      refs = Map.put(refs, ref, name)
+      names = Map.put(names, name, account)
+      {:reply, :ok, {names, refs}}
     end
   end
 
+  def handle_info({:DOWN, ref, :process, _pid, _reason}, {names, refs}) do
+    {name, refs} = Map.pop(refs, ref)
+    names = Map.delete(names, name)
+    {:noreply, {names, refs}}
+  end
+
+  def handle_info(_msg, state) do
+    {:noreply, state}
+  end
 end
