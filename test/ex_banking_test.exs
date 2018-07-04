@@ -1,5 +1,5 @@
 defmodule ExBankingTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
   doctest ExBanking
 
   test "main operations" do

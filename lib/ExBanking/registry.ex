@@ -7,7 +7,8 @@ defmodule ExBanking.Registry do
   Starts the registry.
   """
   def start_link(opts) do
-    GenServer.start_link(__MODULE__, :ok, opts)
+    server = Keyword.fetch!(opts, :name)
+    GenServer.start_link(__MODULE__, server, opts)
   end
 
   @doc """
@@ -16,7 +17,10 @@ defmodule ExBanking.Registry do
   Returns `{:ok, pid}` if the bucket exists, `:error` otherwise.
   """
   def lookup(server, name) do
-    GenServer.call(server, {:lookup, name})
+    case :ets.lookup(server, name) do
+      [{^name, account}] -> {:ok, account}
+      [] -> {:error, :user_does_not_exist}
+    end
   end
 
   @doc """
@@ -35,8 +39,8 @@ defmodule ExBanking.Registry do
 
   ## Server Callbacks
 
-  def init(:ok) do
-    names = %{}
+  def init(table) do
+    names = :ets.new(table, [:named_table, read_concurrency: true])
     refs = %{}
     {:ok, {names, refs}}
   end
@@ -50,20 +54,22 @@ defmodule ExBanking.Registry do
   end
 
   def handle_call({:create, name}, _from, {names, refs}) do
-    if Map.has_key?(names, name) do
-      {:reply, {:error, :user_already_exists}, {names, refs}}
-    else
-      {:ok, account} = ExBanking.Account.start_link([])
-      ref = Process.monitor(account)
-      refs = Map.put(refs, ref, name)
-      names = Map.put(names, name, account)
-      {:reply, :ok, {names, refs}}
+    case lookup(names, name) do
+      {:ok, _pid} ->
+        {:reply, {:error, :user_already_exists}, {names, refs}}
+
+      {:error, :user_does_not_exist} ->
+        {:ok, account} = ExBanking.Account.start_link([])
+        ref = Process.monitor(account)
+        refs = Map.put(refs, ref, name)
+        :ets.insert(names, {name, account})
+        {:reply, :ok, {names, refs}}
     end
   end
 
   def handle_info({:DOWN, ref, :process, _pid, _reason}, {names, refs}) do
     {name, refs} = Map.pop(refs, ref)
-    names = Map.delete(names, name)
+    :ets.delete(names, name)
     {:noreply, {names, refs}}
   end
 

@@ -2,8 +2,8 @@ defmodule ExBanking.RegistryTest do
   use ExUnit.Case, async: true
 
   setup do
-    registry = start_supervised!(ExBanking.Registry)
-    %{registry: registry}
+    _ = start_supervised!({ExBanking.Registry, name: Context.Test})
+    %{registry: Context.Test}
   end
 
   test "spawns accounts", %{registry: registry} do
