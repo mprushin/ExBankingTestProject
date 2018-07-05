@@ -76,8 +76,8 @@ defmodule ExBankingTest do
       end
 
     # IO.put(inspect message_list)
-    assert message_list
-           |> Enum.any?(fn message -> {:error, :too_many_requests_to_user} = message end) == true
+    assert message_list |> Enum.filter(fn message -> {:error, :too_many_requests_to_user} == message end) |> length == 1
+    assert message_list |> Enum.filter(fn message -> {:ok, 0} == message end) |> length == 10
 
   end
 

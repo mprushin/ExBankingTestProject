@@ -27,9 +27,9 @@ defmodule ExBanking.AccountTest do
     assert ExBanking.Account.handle(account, "rur", -10) == {:error, :not_enough_money}
   end
 
-  test "account deposit on 1.444", %{account: account} do
+  test "account deposit on 1.44", %{account: account} do
     assert ExBanking.Account.get(account, "rur") == {:ok, 0}
 
-    assert ExBanking.Account.handle(account, "rur", 1.444) == {:ok, 1.444}
+    assert ExBanking.Account.handle(account, "rur", 1.44) == {:ok, 1.44}
   end
 end
