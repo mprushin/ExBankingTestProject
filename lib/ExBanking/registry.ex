@@ -58,7 +58,7 @@ defmodule ExBanking.Registry do
   ## Server Callbacks
 
   def init(table) do
-    names = :ets.new(table, [:set, :public, :named_table, read_concurrency: true])
+    names = :ets.new(table, [:set, :protected, :named_table, read_concurrency: true])
     refs = %{}
     {:ok, {names, refs}}
   end
