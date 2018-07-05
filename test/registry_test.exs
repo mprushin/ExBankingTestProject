@@ -16,7 +16,7 @@ defmodule ExBanking.RegistryTest do
     assert ExBanking.Account.get(account, "acc1") == {:ok, 1}
   end
 
-  test "removes buckets on exit", %{registry: registry} do
+  test "removes accounts on exit", %{registry: registry} do
     ExBanking.Registry.create(registry, "acc1")
     {:ok, account} = ExBanking.Registry.lookup(registry, "acc1")
     Agent.stop(account)

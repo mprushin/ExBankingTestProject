@@ -14,13 +14,31 @@ defmodule ExBanking.Registry do
   @doc """
   Looks up the account pid for `name` stored in `server`.
 
-  Returns `{:ok, pid}` if the bucket exists, `:error` otherwise.
+  Returns `{:ok, pid}` if the account exists, `{:error, :user_does_not_exist}` otherwise.
   """
   def lookup(server, name) do
     case :ets.lookup(server, name) do
-      [{^name, account}] -> {:ok, account}
+      [{^name, account, _}] -> {:ok, account}
       [] -> {:error, :user_does_not_exist}
     end
+  end
+
+  @doc """
+  Opens transaction for the account/accounts pids for `users` stored in `server`.
+
+  Returns `:ok` if the transaction is opened, `{:error, :too_many_requests_to_user}` or `{:error, :user_does_not_exist}` otherwise.
+  """
+  def open_transaction(server, users) do
+    GenServer.call(server, {:open_transaction, users})
+  end
+
+  @doc """
+  Closes transaction for the account/accounts pids for `users` stored in `server`.
+
+  Returns `:ok` if the transaction is closed, `{:error, :user_does_not_exist}` otherwise.
+  """
+  def close_transaction(server, users) do
+    GenServer.call(server, {:close_transaction, users})
   end
 
   @doc """
@@ -40,7 +58,7 @@ defmodule ExBanking.Registry do
   ## Server Callbacks
 
   def init(table) do
-    names = :ets.new(table, [:named_table, read_concurrency: true])
+    names = :ets.new(table, [:set, :public, :named_table, read_concurrency: true])
     refs = %{}
     {:ok, {names, refs}}
   end
@@ -62,7 +80,41 @@ defmodule ExBanking.Registry do
         {:ok, account} = ExBanking.Account.start_link([])
         ref = Process.monitor(account)
         refs = Map.put(refs, ref, name)
-        :ets.insert(names, {name, account})
+        :ets.insert(names, {name, account, 0})
+        {:reply, :ok, {names, refs}}
+    end
+  end
+
+  def handle_call({:open_transaction, users}, _from, {names, refs}) do
+    case users |> Enum.flat_map(fn user -> :ets.lookup(names, user) end) do
+      lookup_result when lookup_result |> length != users |> length ->
+        {:reply, {:error, :user_does_not_exist}, {names, refs}}
+
+      lookup_result ->
+        if(lookup_result |> Enum.any?(fn {_, _, ops_count} -> ops_count >= 10 end)) do
+          {:reply, {:error, :too_many_requests_to_user}, {names, refs}}
+        else
+          lookup_result
+          |> Enum.map(fn {name, account, ops_count} ->
+            :ets.insert(names, {name, account, ops_count + 1})
+          end)
+
+          {:reply, :ok, {names, refs}}
+        end
+    end
+  end
+
+  def handle_call({:close_transaction, users}, _from, {names, refs}) do
+    case users |> Enum.flat_map(fn user -> :ets.lookup(names, user) end) do
+      lookup_result when lookup_result |> length != users |> length ->
+        {:reply, {:error, :user_does_not_exist}, {names, refs}}
+
+      lookup_result ->
+        lookup_result
+        |> Enum.map(fn {name, account, ops_count} ->
+          :ets.insert(names, {name, account, ops_count - 1})
+        end)
+
         {:reply, :ok, {names, refs}}
     end
   end

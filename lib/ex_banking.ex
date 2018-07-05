@@ -41,8 +41,14 @@ defmodule ExBanking do
   @spec deposit(user :: String.t(), amount :: number, currency :: String.t()) ::
           {:ok, new_balance :: number} | banking_error
   def deposit(user, amount, currency) do
-    with {:ok, account} <- ExBanking.Registry.lookup(ExBanking.Registry, user) do
-      ExBanking.Account.handle(account, currency, amount)
+    with :ok <- ExBanking.Registry.open_transaction(ExBanking.Registry, [user]) do
+      try do
+        with {:ok, account} <- ExBanking.Registry.lookup(ExBanking.Registry, user) do
+          ExBanking.Account.handle(account, currency, amount)
+        end
+      after
+        ExBanking.Registry.close_transaction(ExBanking.Registry, [user])
+      end
     end
   end
 
@@ -53,8 +59,14 @@ defmodule ExBanking do
   @spec withdraw(user :: String.t(), amount :: number, currency :: String.t()) ::
           {:ok, new_balance :: number} | banking_error
   def withdraw(user, amount, currency) do
-    with {:ok, account} <- ExBanking.Registry.lookup(ExBanking.Registry, user) do
-      ExBanking.Account.handle(account, currency, -amount)
+    with :ok <- ExBanking.Registry.open_transaction(ExBanking.Registry, [user]) do
+      try do
+        with {:ok, account} <- ExBanking.Registry.lookup(ExBanking.Registry, user) do
+          ExBanking.Account.handle(account, currency, -amount)
+        end
+      after
+        ExBanking.Registry.close_transaction(ExBanking.Registry, [user])
+      end
     end
   end
 
@@ -64,8 +76,14 @@ defmodule ExBanking do
   @spec get_balance(user :: String.t(), currency :: String.t()) ::
           {:ok, balance :: number} | banking_error
   def get_balance(user, currency) do
-    with {:ok, account} <- ExBanking.Registry.lookup(ExBanking.Registry, user) do
-      ExBanking.Account.get(account, currency)
+    with :ok <- ExBanking.Registry.open_transaction(ExBanking.Registry, [user]) do
+      try do
+        with {:ok, account} <- ExBanking.Registry.lookup(ExBanking.Registry, user) do
+          ExBanking.Account.get(account, currency)
+        end
+      after
+        ExBanking.Registry.close_transaction(ExBanking.Registry, [user])
+      end
     end
   end
 
@@ -81,22 +99,29 @@ defmodule ExBanking do
           currency :: String.t()
         ) :: {:ok, from_user_balance :: number, to_user_balance :: number} | banking_error
   def send(from_user, to_user, amount, currency) do
-    from_lookup_response = ExBanking.Registry.lookup(ExBanking.Registry, from_user)
-    to_lookup_response = ExBanking.Registry.lookup(ExBanking.Registry, to_user)
-
-    with {:ok, from_account} <- from_lookup_response,
-         {:ok, to_account} <- to_lookup_response,
-         {:ok, from_user_balance} <- ExBanking.Account.handle(from_account, currency, -amount),
-         {:ok, to_user_balance} <- ExBanking.Account.handle(to_account, currency, amount) do
-      {:ok, from_user_balance, to_user_balance}
+    with :ok <- ExBanking.Registry.open_transaction(ExBanking.Registry, [from_user, to_user]) do
+      try do
+        with {:ok, from_account} <- ExBanking.Registry.lookup(ExBanking.Registry, from_user),
+             {:ok, to_account} <- ExBanking.Registry.lookup(ExBanking.Registry, to_user),
+             {:ok, from_user_balance} <-
+               ExBanking.Account.handle(from_account, currency, -amount),
+             {:ok, to_user_balance} <- ExBanking.Account.handle(to_account, currency, amount) do
+          {:ok, from_user_balance, to_user_balance}
+        end
+      after
+        ExBanking.Registry.close_transaction(ExBanking.Registry, [from_user, to_user])
+      end
     else
       {:error, :user_does_not_exist} ->
-        if from_lookup_response == {:error, :user_does_not_exist} do
+        if ExBanking.Registry.lookup(ExBanking.Registry, from_user) ==
+             {:error, :user_does_not_exist} do
           {:error, :sender_does_not_exist}
-         else
-           {:error, :receiver_does_not_exist}
+        else
+          {:error, :receiver_does_not_exist}
         end
-      err ->  err
+
+      err ->
+        err
     end
   end
 end
