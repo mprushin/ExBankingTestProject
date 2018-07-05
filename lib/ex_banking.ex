@@ -1,5 +1,6 @@
 defmodule ExBanking do
   use Application
+  import ExBanking.Validator
 
   @moduledoc """
   ExBanking module.
@@ -31,7 +32,9 @@ defmodule ExBanking do
   """
   @spec create_user(user :: String.t()) :: :ok | banking_error
   def create_user(user) do
-    ExBanking.Registry.create(ExBanking.Registry, user)
+    with :ok <- validate_string(user) do
+      ExBanking.Registry.create(ExBanking.Registry, user)
+    end
   end
 
   @doc """
@@ -41,7 +44,10 @@ defmodule ExBanking do
   @spec deposit(user :: String.t(), amount :: number, currency :: String.t()) ::
           {:ok, new_balance :: number} | banking_error
   def deposit(user, amount, currency) do
-    with :ok <- ExBanking.Registry.open_transaction(ExBanking.Registry, [user]) do
+    with :ok <- validate_string(user),
+         :ok <- validate_money(amount),
+         :ok <- validate_string(currency),
+         :ok <- ExBanking.Registry.open_transaction(ExBanking.Registry, [user]) do
       try do
         with {:ok, account} <- ExBanking.Registry.lookup(ExBanking.Registry, user) do
           ExBanking.Account.handle(account, currency, amount)
@@ -59,7 +65,10 @@ defmodule ExBanking do
   @spec withdraw(user :: String.t(), amount :: number, currency :: String.t()) ::
           {:ok, new_balance :: number} | banking_error
   def withdraw(user, amount, currency) do
-    with :ok <- ExBanking.Registry.open_transaction(ExBanking.Registry, [user]) do
+    with :ok <- validate_string(user),
+         :ok <- validate_money(amount),
+         :ok <- validate_string(currency),
+         :ok <- ExBanking.Registry.open_transaction(ExBanking.Registry, [user]) do
       try do
         with {:ok, account} <- ExBanking.Registry.lookup(ExBanking.Registry, user) do
           ExBanking.Account.handle(account, currency, -amount)
@@ -76,7 +85,9 @@ defmodule ExBanking do
   @spec get_balance(user :: String.t(), currency :: String.t()) ::
           {:ok, balance :: number} | banking_error
   def get_balance(user, currency) do
-    with :ok <- ExBanking.Registry.open_transaction(ExBanking.Registry, [user]) do
+    with :ok <- validate_string(user),
+         :ok <- validate_string(currency),
+         :ok <- ExBanking.Registry.open_transaction(ExBanking.Registry, [user]) do
       try do
         with {:ok, account} <- ExBanking.Registry.lookup(ExBanking.Registry, user) do
           ExBanking.Account.get(account, currency)
@@ -99,7 +110,11 @@ defmodule ExBanking do
           currency :: String.t()
         ) :: {:ok, from_user_balance :: number, to_user_balance :: number} | banking_error
   def send(from_user, to_user, amount, currency) do
-    with :ok <- ExBanking.Registry.open_transaction(ExBanking.Registry, [from_user, to_user]) do
+    with :ok <- validate_string(from_user),
+    :ok <- validate_string(to_user),
+    :ok <- validate_money(amount),
+    :ok <- validate_string(currency),
+    :ok <- ExBanking.Registry.open_transaction(ExBanking.Registry, [from_user, to_user]) do
       try do
         with {:ok, from_account} <- ExBanking.Registry.lookup(ExBanking.Registry, from_user),
              {:ok, to_account} <- ExBanking.Registry.lookup(ExBanking.Registry, to_user),

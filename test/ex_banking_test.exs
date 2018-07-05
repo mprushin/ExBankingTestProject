@@ -79,6 +79,6 @@ defmodule ExBankingTest do
     assert message_list
            |> Enum.any?(fn message -> {:error, :too_many_requests_to_user} = message end) == true
 
-    # assert {:error, :too_many_requests_to_user} = ExBanking.get_balance("test10", "rur")
   end
+
 end
