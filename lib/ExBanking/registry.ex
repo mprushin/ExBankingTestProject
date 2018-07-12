@@ -91,8 +91,18 @@ defmodule ExBanking.Registry do
         {:reply, {:error, :user_does_not_exist}, {names, refs}}
 
       lookup_result ->
-        if(lookup_result |> Enum.any?(fn {_, _, ops_count} -> ops_count >= 10 end)) do
-          {:reply, {:error, :too_many_requests_to_user}, {names, refs}}
+        lookup_result_filtered = lookup_result |> Enum.filter(fn {_, _, ops_count} -> ops_count >= 10 end)
+        if length(lookup_result_filtered)>0 do
+          case users do
+            [_] -> {:reply, {:error, :too_many_requests_to_user}, {names, refs}}
+            [user_from, user_to] ->
+              case List.first(lookup_result_filtered) do
+                {^user_from, _, _} -> {:reply, {:error, :too_many_requests_to_sender}, {names, refs}}
+                {^user_to, _, _} -> {:reply, {:error, :too_many_requests_to_receiver}, {names, refs}}
+              end
+          end
+
+
         else
           lookup_result
           |> Enum.map(fn {name, account, ops_count} ->

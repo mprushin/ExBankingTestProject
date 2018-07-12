@@ -47,6 +47,15 @@ defmodule ExBankingTest do
     assert {:error, :not_enough_money} = ExBanking.send("test6", "test7", 100, "rur")
   end
 
+  test "send money to himself" do
+    ExBanking.create_user("test11")
+    ExBanking.deposit("test11", 100, "rur")
+    ExBanking.send("test11", "test11", 50, "rur")
+
+    assert {:ok, 100} = ExBanking.get_balance("test11", "rur")
+
+  end
+
   test "send works" do
     ExBanking.create_user("test8")
     ExBanking.create_user("test9")
@@ -75,9 +84,79 @@ defmodule ExBankingTest do
         end
       end
 
-    # IO.put(inspect message_list)
+   #IO.puts(inspect message_list)
     assert message_list |> Enum.filter(fn message -> {:error, :too_many_requests_to_user} == message end) |> length == 1
     assert message_list |> Enum.filter(fn message -> {:ok, 0} == message end) |> length == 10
+
+  end
+
+
+  test "10 request in sender's queue " do
+    ExBanking.create_user("test12")
+    ExBanking.create_user("test13")
+    ExBanking.create_user("test14")
+
+    ExBanking.deposit("test12", 1000, "rur")
+
+    for i <- 0..10 do
+      parent = self()
+
+      Task.start(fn ->
+        if rem(i, 2) > 0 do
+          message = ExBanking.send("test12", "test13", 10, "rur")
+        else
+          message = ExBanking.send("test12", "test14", 10, "rur")
+        end
+        send(parent, {:test12, message})
+      end)
+    end
+
+    message_list =
+      for _ <- 0..10 do
+        receive do
+          {:test12, message} ->
+            message
+        end
+      end
+
+   #IO.puts(inspect message_list)
+    assert message_list |> Enum.filter(fn message -> {:error, :too_many_requests_to_sender} == message end) |> length == 1
+    assert message_list |> Enum.filter(fn message -> elem(message, 0) == :ok end) |> length == 10
+
+  end
+
+  test "10 request in receiver's queue" do
+    ExBanking.create_user("test15")
+    ExBanking.create_user("test16")
+    ExBanking.create_user("test17")
+
+    ExBanking.deposit("test15", 1000, "rur")
+    ExBanking.deposit("test16", 1000, "rur")
+
+    for i <- 0..10 do
+      parent = self()
+
+      Task.start(fn ->
+        if rem(i, 2) > 0 do
+          message = ExBanking.send("test15", "test17", 10, "rur")
+        else
+          message = ExBanking.send("test16", "test17", 10, "rur")
+        end
+        send(parent, {:test13, message})
+      end)
+    end
+
+    message_list =
+      for _ <- 0..10 do
+        receive do
+          {:test13, message} ->
+            message
+        end
+      end
+
+   #IO.puts(inspect message_list)
+    assert message_list |> Enum.filter(fn message -> {:error, :too_many_requests_to_receiver} == message end) |> length == 1
+    assert message_list |> Enum.filter(fn message -> elem(message, 0) == :ok end) |> length == 10
 
   end
 
